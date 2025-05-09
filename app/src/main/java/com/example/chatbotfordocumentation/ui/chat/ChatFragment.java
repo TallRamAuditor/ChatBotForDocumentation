@@ -1,4 +1,12 @@
 package com.example.chatbotfordocumentation.ui.chat;
+import com.example.chatbotfordocumentation.ui.chat.ApiService;
+import com.example.chatbotfordocumentation.ui.chat.ApiRequest;
+import com.example.chatbotfordocumentation.ui.chat.ApiResponse;
+import retrofit2.Retrofit;
+import retrofit2.converter.gson.GsonConverterFactory;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
 
 import android.content.Intent;
 import android.net.Uri;
@@ -68,20 +76,50 @@ public class ChatFragment extends Fragment {
     }
 
     // Метод для отправки сообщения
-    private void sendMessage(){
+    private void sendMessage() {
         String message = editTextMessage.getText().toString().trim();
-        if(!message.isEmpty()){
-            // Добавление сообщения в список
+        if (!message.isEmpty()) {
+            // Отображаем отправленное сообщение
             chatMessages.add(new ChatMessage(message, ChatMessage.TYPE_SENT));
             chatAdapter.notifyItemInserted(chatMessages.size() - 1);
             recyclerViewChat.scrollToPosition(chatMessages.size() - 1);
             editTextMessage.setText("");
 
-            // Здесь можно добавить логику отправки сообщения на сервер или обработку сообщения
+            // Отправка на сервер
+            Retrofit retrofit = new Retrofit.Builder()
+                    .baseUrl("http://10.0.2.2:8000/ask?question=") // замените на свой адрес сервера
+                    .addConverterFactory(GsonConverterFactory.create())
+                    .build();
+
+            ApiService apiService = retrofit.create(ApiService.class);
+            ApiRequest request = new ApiRequest(message);
+
+            apiService.sendMessage(request).enqueue(new Callback<ApiResponse>() {
+                @Override
+                public void onResponse(Call<ApiResponse> call, Response<ApiResponse> response) {
+                    if (response.isSuccessful() && response.body() != null) {
+                        String botReply = response.body().getResponse();
+
+                        chatMessages.add(new ChatMessage(botReply, ChatMessage.TYPE_RECEIVED));
+                        chatAdapter.notifyItemInserted(chatMessages.size() - 1);
+                        recyclerViewChat.scrollToPosition(chatMessages.size() - 1);
+                    } else {
+                        chatMessages.add(new ChatMessage("Ошибка сервера", ChatMessage.TYPE_RECEIVED));
+                    }
+                }
+
+                @Override
+                public void onFailure(Call<ApiResponse> call, Throwable t) {
+                    chatMessages.add(new ChatMessage("Ошибка соединения: " + t.getMessage(), ChatMessage.TYPE_RECEIVED));
+                    chatAdapter.notifyItemInserted(chatMessages.size() - 1);
+                    recyclerViewChat.scrollToPosition(chatMessages.size() - 1);
+                }
+            });
         } else {
             Toast.makeText(getContext(), "Введите сообщение", Toast.LENGTH_SHORT).show();
         }
     }
+
 
     // Метод для открытия выбора файла
     private void openFileChooser(){
